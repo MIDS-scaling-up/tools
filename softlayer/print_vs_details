@@ -1,0 +1,29 @@
+#!/bin/bash -e
+
+read_from_sl(){
+  local val=$(cat ~/.softlayer | grep $1 | cut -f2 -d= | tr -d '[[:space:]]')
+  echo "$val"
+}
+
+usage(){
+  echo "usage: $0 sl_vs_hostname"
+  echo "Note that this program expects that credentials can be read from ~/.softlayer. If you need to configure the SoftLayer cli tool, see slcli help."
+}
+
+USER=$(read_from_sl username)
+API_KEY=$(read_from_sl api_key)
+
+if [[ ! ($USER && $API_KEY && $1) ]]; then
+  usage
+  exit 1
+else
+  vs=$(curl -s "https://$USER:$API_KEY@api.softlayer.com/rest/v3/SoftLayer_Account/VirtualGuests.json?objectMask=id;fullyQualifiedDomainName;hostname;domain;primaryIpAddress;operatingSystem.passwords" | jq -r ".[] | select(.hostname == \"$1\") | {fullyQualifiedDomainName,id, root_password: .operatingSystem.passwords[] | select(.username == \"root\").password, primaryIpAddress}")
+
+  if [[ ! $vs ]]; then
+    echo "No VS found with hostname '$1'"
+  else
+    echo "$vs" | jq -r '.'
+  fi
+  exit 0
+fi
+
